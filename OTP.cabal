@@ -7,9 +7,12 @@ synopsis:            HMAC-Based and Time-Based One-Time Passwords
 -- description:         
 license:             MIT
 license-file:        LICENSE
+copyright:           (c) 2012 Artem Leshchev
 author:              Artem Leshchev
 maintainer:          matshch@gmail.com
-category:            Data
+homepage:            https://github.com/matshch/OTP
+bug-reports:         https://github.com/matshch/OTP/issues
+category:            Cryptography
 build-type:          Simple
 cabal-version:       >=1.8
 library
