@@ -15,6 +15,7 @@ bug-reports:         https://github.com/matshch/OTP/issues
 category:            Cryptography
 build-type:          Simple
 cabal-version:       >=1.8
+
 library
   exposed-modules:     Data.OTP
-  build-depends:       base ==4.5.*  
+  build-depends:       base >= 3, base < 5, Crypto >= 4, Crypto < 5
