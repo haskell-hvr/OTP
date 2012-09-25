@@ -2,25 +2,20 @@ module Main where
 
 import Codec.Utils
 import Data.OTP
+import Data.Time
 import System.Exit (exitFailure)
 
-hotp_test 0 = 755224
-hotp_test 1 = 287082
-hotp_test 2 = 359152
-hotp_test 3 = 969429
-hotp_test 4 = 338314
-hotp_test 5 = 254676
-hotp_test 6 = 287922
-hotp_test 7 = 162583
-hotp_test 8 = 399871
-hotp_test 9 = 520489
+secret_otp :: [Octet]
+secret_otp = [49,50,51,52,53,54,55,56,57,48,49,50,51,52,53,54,55,56,57,48]
 
-secret_hotp :: [Octet]
-secret_hotp = [49,50,51,52,53,54,55,56,57,48,49,50,51,52,53,54,55,56,57,48]
+hotp_t = zipWith (\x y -> (hotp secret_otp x 6) == y) [0..9]
+        [755224, 287082, 359152, 969429, 338314, 254676, 287922, 162583, 399871, 520489]
 
-hotp_t = map (\x -> (hotp secret_hotp x 6) == (hotp_test x)) [0..9]
-
-tests = hotp_t
+totp_t = zipWith (\x y -> (totp secret_otp x 8 30) == y) (map (read) ["1970-01-01 00:00:59 UTC",
+        "2005-03-18 01:58:29 UTC", "2005-03-18 01:58:31 UTC", "2009-02-13 23:31:30 UTC",
+        "2033-05-18 03:33:20 UTC"])
+        [94287082, 07081804, 14050471, 89005924, 69279037]
+tests = hotp_t ++ totp_t
 
 main =  if (and tests) then putStrLn "Tests succeful!"
         else do
