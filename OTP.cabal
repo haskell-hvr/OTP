@@ -4,7 +4,7 @@ name:                OTP
 --                   | | | +--- code changes with no API change
 version:             0.0.0.1
 synopsis:            HMAC-Based and Time-Based One-Time Passwords
--- description:         
+description:         Implements HMAC-Based One-Time Password Algorithm as defined in RFC 4226 and Time-Based One-Time Password Algorithm as defined in RFC 6238.
 license:             MIT
 license-file:        LICENSE
 copyright:           (c) 2012 Artem Leshchev
@@ -18,9 +18,18 @@ cabal-version:       >=1.8
 
 library
   exposed-modules:     Data.OTP
-  build-depends:       base, Crypto >= 4, time >= 1
+  build-depends:       base >= 3 && < 5, Crypto >= 4, time >= 1.1
 
 Test-Suite tests
     type:               exitcode-stdio-1.0
     main-is:            Test/opt.hs
-    build-depends:      base, Crypto >= 4, time >= 1.1
+    build-depends:      base >= 3 && < 5, Crypto >= 4, time >= 1.1
+
+source-repository head
+  type:     git
+  location: git://github.com/matshch/OTP.git
+
+source-repository this
+  type:     git
+  location: git://github.com/matshch/OTP.git
+  tag:      v0.0.0.1
