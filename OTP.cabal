@@ -44,8 +44,12 @@ Test-Suite tests
   build-depends:   base >= 3 && < 5
                  , OTP
                  , bytestring
+                 , tasty
+                 , tasty-hunit
                  , cryptohash
                  , time >= 1.1
+
+  ghc-options: -Wall
 
 source-repository head
   type:     git
