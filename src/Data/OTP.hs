@@ -1,8 +1,16 @@
 -- |Implements HMAC-Based One-Time Password Algorithm as defined in RFC 4226 and
 -- Time-Based One-Time Password Algorithm as defined in RFC 6238.
 module Data.OTP
-       ( hotp
+       ( -- * HOTP
+         hotp
+       , hotpCheck
+         -- * TOTP
        , totp
+       , totpCheck
+         -- * Auxiliary
+       , totpCounter
+       , counterRange
+       , totpCounterRange
        ) where
 
 import Crypto.Hash
@@ -42,16 +50,69 @@ hotp alg secr cnt digit =
             Left e -> error e
             Right res -> res .&. (0x80000000 - 1) -- reset highest bit
 
+hotpCheck :: (HashAlgorithm a)
+          => a                  -- ^ Hashing algorithm
+          -> ByteString         -- ^ Shared secret
+          -> (Word64, Word64)   -- ^ how much counters to take lower and higher than ideal
+          -> Word64             -- ^ ideal (expected) counter value
+          -> Word               -- ^ Number of digits in password
+          -> Word32             -- ^ Password entered by user
+          -> Bool               -- ^ True if password acceptable
+hotpCheck alg secr rng cnt digits pass =
+    let counters = counterRange rng cnt
+        passwds = map (\c -> hotp alg secr c digits) counters
+    in any (pass ==) passwds
 
 -- | Compute an TOTP using secret key and time.
 totp :: (HashAlgorithm a)
      => a                       -- ^ Hash algorithm to use
      -> ByteString              -- ^ Shared secret
      -> UTCTime                 -- ^ Time of TOTP
-     -> Word64                  -- ^ Time period
+     -> Word64                  -- ^ Time period in seconds
      -> Word                    -- ^ Number of digits in password
      -> Word32                  -- ^ TOTP
 totp alg secr time period digits =
+    hotp alg secr (totpCounter time period) digits
+
+totpCheck :: (HashAlgorithm a)
+          => a                  -- ^ Hashing algorithm
+          -> ByteString         -- ^ Shared secret
+          -> (Word64, Word64)   -- ^ How much counters to take lower and higher than ideal
+          -> UTCTime            -- ^ Time of totp
+          -> Word64             -- ^ Time period in seconds
+          -> Word               -- ^ Numer of digits in password
+          -> Word32             -- ^ Password given by user
+          -> Bool               -- ^ True if password acceptable
+totpCheck alg secr rng time period digits pass =
+    let counters = totpCounterRange rng time period
+        passwds = map (\c -> hotp alg secr c digits) counters
+    in any (pass ==) passwds
+
+
+-- | Calculate counter for `hotp` using time
+totpCounter :: UTCTime          -- ^ Time of totp
+            -> Word64           -- ^ Time period in seconds
+            -> Word64           -- ^ Resulting counter
+totpCounter time period =
     let timePOSIX = floor $ utcTimeToPOSIXSeconds time
-        timeCounter = timePOSIX `div` period
-    in hotp alg secr timeCounter digits
+    in timePOSIX `div` period
+
+-- | Return sequence of acceptable counters. It protects you from
+-- arithmetic overflow and truncates output to 1000 values, because
+-- huge counter ranges are not secure.
+counterRange :: (Word64, Word64) -- ^ How much counters to take lower than ideal and higher
+             -> Word64           -- ^ Ideal counter value
+             -> [Word64]
+counterRange (tolow, tohigh) ideal =
+    let l = trim 0 ideal (ideal - tolow)
+        h = trim ideal maxBound (ideal + tohigh)
+    in take 1000 [l..h]
+  where
+    trim l h = max l . min h
+
+totpCounterRange :: (Word64, Word64)
+                 -> UTCTime
+                 -> Word64
+                 -> [Word64]
+totpCounterRange rng time period =
+    counterRange rng $ totpCounter time period
