@@ -38,6 +38,7 @@ library
 Test-Suite tests
   type:            exitcode-stdio-1.0
   hs-source-dirs:  test
+  default-extensions: OverloadedStrings
 
   main-is:         opt.hs
 

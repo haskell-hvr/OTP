@@ -17,6 +17,7 @@ import Data.Word
 
 import qualified Data.ByteString as BS
 
+
 -- | Compute an HOTP using secret key and counter value.
 hotp :: (HashAlgorithm a)
      => a                       -- ^ Hashing algorithm from module "Crypto.Hash"
@@ -25,20 +26,21 @@ hotp :: (HashAlgorithm a)
      -> Word                    -- ^ Number of digits in password
      -> Word32                  -- ^ HOTP
 hotp alg secr cnt digit =
-    let h = truncate
+    let h = trunc
             $ toBytes
             $ hmacAlg alg secr
             $ runPut
             $ putWord64be cnt
     in h `mod` (10^digit)
   where
-    truncate :: ByteString -> Word32
-    truncate b =
-        let offset = BS.last b .&. 15
-            rb = BS.take 4 $ BS.drop (fromIntegral offset) b
-        in case runGet getWord32le rb of
+    trunc :: ByteString -> Word32
+    trunc b =
+        let offset = BS.last b .&. 15 -- take low 4 bits of last byte
+            rb = BS.take 4
+                 $ BS.drop (fromIntegral offset) b -- resulting 4 byte value
+        in case runGet getWord32be rb of
             Left e -> error e
-            Right b -> shiftR b 1 -- get last 31 bits as a number
+            Right res -> res .&. (0x80000000 - 1) -- reset highest bit
 
 
 -- | Compute an TOTP using secret key and time.
