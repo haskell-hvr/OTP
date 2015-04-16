@@ -18,7 +18,7 @@ homepage:            https://github.com/matshch/OTP
 bug-reports:         https://github.com/matshch/OTP/issues
 category:            Cryptography
 build-type:          Simple
-cabal-version:       >=1.8
+cabal-version:       >=1.10
 
 library
   default-language:  Haskell2010
