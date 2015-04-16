@@ -1,16 +1,13 @@
 module Main where
 
-import Control.Arrow
 import Crypto.Hash
 import Data.ByteString  (ByteString)
 import Data.OTP
 import Data.Time
 import Data.Word
-import System.Exit      (exitFailure)
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BC
 
 hotpSecret :: ByteString
@@ -30,7 +27,7 @@ hotpResults =
     ]
 
 
-data SomeAlg = forall a. (HashAlgorithm a, Show a) => SomeAlg { getAlg :: a }
+data SomeAlg = forall a. (HashAlgorithm a, Show a) => SomeAlg a
 
 instance Show SomeAlg where
     show (SomeAlg a) = show a
@@ -43,8 +40,13 @@ testTotp (secr, key, alg', result) =
             let t = totp alg secr key 30 8
             result @=? t
 
+sha1Secr :: ByteString
 sha1Secr   = BC.pack $ take 20 $ cycle "12345678901234567890"
+
+sha256Secr :: ByteString
 sha256Secr = BC.pack $ take 32 $ cycle "12345678901234567890"
+
+sha512Secr :: ByteString
 sha512Secr = BC.pack $ take 64 $ cycle "12345678901234567890"
 
 totpData :: [(ByteString, UTCTime, SomeAlg, Word32)]
@@ -71,7 +73,7 @@ totpData =
 
 
 main :: IO ()
-main = defaultMain $ testGroup "unit tests"
+main = defaultMain $ testGroup "test vectors"
     [ testGroup "hotp" $ map (uncurry testHotp) $ zip [0..] hotpResults
     , testGroup "totp" $ map testTotp totpData
     ]

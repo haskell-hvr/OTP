@@ -35,9 +35,10 @@ library
 
   ghc-options: -Wall
 
-Test-Suite tests
+test-suite tests
   type:            exitcode-stdio-1.0
   hs-source-dirs:  test
+
   default-extensions: ExistentialQuantification
                     , OverloadedStrings
                     , RankNTypes
@@ -47,9 +48,9 @@ Test-Suite tests
   build-depends:   base >= 3 && < 5
                  , OTP
                  , bytestring
+                 , cryptohash
                  , tasty
                  , tasty-hunit
-                 , cryptohash
                  , time >= 1.1
 
   ghc-options: -Wall
