@@ -19,14 +19,27 @@ import Data.Byteable
 import Data.ByteString       (ByteString)
 import Data.Serialize.Get
 import Data.Serialize.Put
-import Data.Time.Clock
+import Data.Time
 import Data.Time.Clock.POSIX
 import Data.Word
 
 import qualified Data.ByteString as BS
 
 
--- | Compute an HOTP using secret key and counter value.
+
+{- | Compute an HOTP using secret key and counter value.
+
+>>> hotp SHA1 "1234" 100 6
+317569
+
+>>> hotp SHA512 "1234" 100 6
+134131
+
+>>> hotp SHA512 "1234" 100 8
+55134131
+
+-}
+
 hotp :: (HashAlgorithm a)
      => a                       -- ^ Hashing algorithm from module "Crypto.Hash"
      -> ByteString              -- ^ Shared secret
@@ -50,6 +63,38 @@ hotp alg secr cnt digit =
             Left e -> error e
             Right res -> res .&. (0x80000000 - 1) -- reset highest bit
 
+{- | Check given one time password considering counter resinchronization
+desynchronisation
+
+>>> hotp SHA1 "1234" 10 6
+50897
+
+>>> hotpCheck SHA1 "1234" (0,0) 10 6 50897
+True
+
+>>> hotpCheck SHA1 "1234" (0,0) 9 6 50897
+False
+
+>>> hotpCheck SHA1 "1234" (0,1) 9 6 50897
+True
+
+>>> hotpCheck SHA1 "1234" (1,0) 11 6 50897
+True
+
+>>> hotpCheck SHA1 "1234" (2,2) 8 6 50897
+True
+
+>>> hotpCheck SHA1 "1234" (2,2) 7 6 50897
+False
+
+>>> hotpCheck SHA1 "1234" (2,2) 12 6 50897
+True
+
+>>> hotpCheck SHA1 "1234" (2,2) 13 6 50897
+False
+
+-}
+
 hotpCheck :: (HashAlgorithm a)
           => a                  -- ^ Hashing algorithm
           -> ByteString         -- ^ Shared secret
@@ -63,7 +108,22 @@ hotpCheck alg secr rng cnt digits pass =
         passwds = map (\c -> hotp alg secr c digits) counters
     in any (pass ==) passwds
 
--- | Compute an TOTP using secret key and time.
+{- | Compute an TOTP using secret key and time.
+
+>>> totp SHA1 "1234" (read "2010-10-10 00:01:00 UTC") 30 6
+388892
+
+>>> totp SHA1 "1234" (read "2010-10-10 00:01:00 UTC") 30 8
+43388892
+
+>>> totp SHA1 "1234" (read "2010-10-10 00:01:15 UTC") 30 8
+43388892
+
+>>> totp SHA1 "1234" (read "2010-10-10 00:01:31 UTC") 30 8
+39110359
+
+-}
+
 totp :: (HashAlgorithm a)
      => a                       -- ^ Hash algorithm to use
      -> ByteString              -- ^ Shared secret
@@ -73,6 +133,27 @@ totp :: (HashAlgorithm a)
      -> Word32                  -- ^ TOTP
 totp alg secr time period digits =
     hotp alg secr (totpCounter time period) digits
+
+{- | Same as 'hotpCheck' but checks TOTP
+
+>>> totp SHA1 "1234" (read "2010-10-10 00:00:00 UTC") 30 6
+778374
+
+>>> totpCheck SHA1 "1234" (0, 0) (read "2010-10-10 00:00:00 UTC") 30 6 778374
+True
+
+>>> totpCheck SHA1 "1234" (0, 0) (read "2010-10-10 00:00:30 UTC") 30 6 778374
+False
+
+>>> totpCheck SHA1 "1234" (1, 0) (read "2010-10-10 00:00:30 UTC") 30 6 778374
+True
+
+>>> totpCheck SHA1 "1234" (1, 0) (read "2010-10-10 00:01:00 UTC") 30 6 778374
+False
+
+>>> totpCheck SHA1 "1234" (2, 0) (read "2010-10-10 00:01:00 UTC") 30 6 778374
+True
+-}
 
 totpCheck :: (HashAlgorithm a)
           => a                  -- ^ Hashing algorithm
@@ -89,7 +170,20 @@ totpCheck alg secr rng time period digits pass =
     in any (pass ==) passwds
 
 
--- | Calculate counter for `hotp` using time
+{- | Calculate counter for `hotp` using time. Starting time (T0
+according to RFC6238) is 0 (begining of UNIX epoch)
+
+>>> totpCounter (read "2010-10-10 00:00:00 UTC") 30
+42888960
+
+>>> totpCounter (read "2010-10-10 00:00:30 UTC") 30
+42888961
+
+>>> totpCounter (read "2010-10-10 00:01:00 UTC") 30
+42888962
+
+-}
+
 totpCounter :: UTCTime          -- ^ Time of totp
             -> Word64           -- ^ Time period in seconds
             -> Word64           -- ^ Resulting counter
@@ -97,18 +191,65 @@ totpCounter time period =
     let timePOSIX = floor $ utcTimeToPOSIXSeconds time
     in timePOSIX `div` period
 
--- | Return sequence of acceptable counters. It protects you from
--- arithmetic overflow and truncates output to 1000 values, because
--- huge counter ranges are not secure.
+{- | Return sequence of acceptable counters. It protects you from
+arithmetic overflow and truncates output to 1000 values, because huge
+counter ranges are not secure.
+
+>>> counterRange (0, 0) 9000
+[9000]
+
+>>> counterRange (1, 0) 9000
+[8999,9000]
+
+>>> length $ counterRange (5000, 0) 9000
+501
+
+>>> length $ counterRange (5000, 5000) 9000
+1000
+
+>>> counterRange (2, 2) maxBound
+[18446744073709551613,18446744073709551614,18446744073709551615]
+
+>>> counterRange (2, 2) minBound
+[0,1,2]
+
+>>> counterRange (2, 2) (maxBound `div` 2)
+[9223372036854775805,9223372036854775806,9223372036854775807,9223372036854775808,9223372036854775809]
+
+>>> counterRange (5, 5) 9000
+[8995,8996,8997,8998,8999,9000,9001,9002,9003,9004,9005]
+
+RFC recommends not to use big values for higher and lower counter
+ranges
+-}
+
 counterRange :: (Word64, Word64) -- ^ How much counters to take lower than ideal and higher
              -> Word64           -- ^ Ideal counter value
              -> [Word64]
-counterRange (tolow, tohigh) ideal =
-    let l = trim 0 ideal (ideal - tolow)
+counterRange (tolow', tohigh') ideal =
+    let tolow = min 500 tolow'
+        tohigh = min 499 tohigh'
+        l = trim 0 ideal (ideal - tolow)
         h = trim ideal maxBound (ideal + tohigh)
-    in take 1000 [l..h]
+    in [l..h]
   where
     trim l h = max l . min h
+
+{- | Same as 'counterRange' but used for time-based counters.
+
+>>> totpCounterRange (0, 0) (read "2010-10-10 00:01:00 UTC") 30
+[42888962]
+
+>>> totpCounterRange (2, 0) (read "2010-10-10 00:01:00 UTC") 30
+[42888960,42888961,42888962]
+
+>>> totpCounterRange (0, 2) (read "2010-10-10 00:01:00 UTC") 30
+[42888962,42888963,42888964]
+
+>>> totpCounterRange (2, 2) (read "2010-10-10 00:01:00 UTC") 30
+[42888960,42888961,42888962,42888963,42888964]
+
+-}
 
 totpCounterRange :: (Word64, Word64)
                  -> UTCTime
