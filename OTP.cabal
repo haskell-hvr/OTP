@@ -45,7 +45,7 @@ test-suite tests
                     , OverloadedStrings
                     , RankNTypes
 
-  main-is:         opt.hs
+  main-is:         Test.hs
 
   build-depends:   base >= 3 && < 5
                  , OTP
