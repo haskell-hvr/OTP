@@ -38,7 +38,9 @@ library
 Test-Suite tests
   type:            exitcode-stdio-1.0
   hs-source-dirs:  test
-  default-extensions: OverloadedStrings
+  default-extensions: ExistentialQuantification
+                    , OverloadedStrings
+                    , RankNTypes
 
   main-is:         opt.hs
 
