@@ -25,9 +25,7 @@ import Data.Word
 
 import qualified Data.ByteString as BS
 
-
-
-{- | Compute an HOTP using secret key and counter value.
+{- | Compute HOTP using secret key and counter value.
 
 >>> hotp SHA1 "1234" 100 6
 317569
@@ -44,15 +42,15 @@ hotp :: (HashAlgorithm a)
      => a                       -- ^ Hashing algorithm from module "Crypto.Hash"
      -> ByteString              -- ^ Shared secret
      -> Word64                  -- ^ Counter value
-     -> Word                    -- ^ Number of digits in password
+     -> Word                    -- ^ Number of digits in a password
      -> Word32                  -- ^ HOTP
-hotp alg secr cnt digit =
+hotp alg secr cnt len =
     let h = trunc
             $ toBytes
             $ hmacAlg alg secr
             $ runPut
             $ putWord64be cnt
-    in h `mod` (10^digit)
+    in h `mod` (10^len)
   where
     trunc :: ByteString -> Word32
     trunc b =
@@ -63,8 +61,7 @@ hotp alg secr cnt digit =
             Left e -> error e
             Right res -> res .&. (0x80000000 - 1) -- reset highest bit
 
-{- | Check given one time password considering counter resinchronization
-desynchronisation
+{- | Check presented password against a valid range.
 
 >>> hotp SHA1 "1234" 10 6
 50897
@@ -98,17 +95,17 @@ False
 hotpCheck :: (HashAlgorithm a)
           => a                  -- ^ Hashing algorithm
           -> ByteString         -- ^ Shared secret
-          -> (Word64, Word64)   -- ^ how much counters to take lower and higher than ideal
-          -> Word64             -- ^ ideal (expected) counter value
-          -> Word               -- ^ Number of digits in password
+          -> (Word64, Word64)   -- ^ Valid counter range, before and after ideal
+          -> Word64             -- ^ Ideal (expected) counter value
+          -> Word               -- ^ Number of digits in a password
           -> Word32             -- ^ Password entered by user
-          -> Bool               -- ^ True if password acceptable
-hotpCheck alg secr rng cnt digits pass =
+          -> Bool               -- ^ True if password is valid
+hotpCheck alg secr rng cnt len pass =
     let counters = counterRange rng cnt
-        passwds = map (\c -> hotp alg secr c digits) counters
+        passwds = map (\c -> hotp alg secr c len) counters
     in any (pass ==) passwds
 
-{- | Compute an TOTP using secret key and time.
+{- | Compute a TOTP using secret key and time.
 
 >>> totp SHA1 "1234" (read "2010-10-10 00:01:00 UTC") 30 6
 388892
@@ -129,12 +126,12 @@ totp :: (HashAlgorithm a)
      -> ByteString              -- ^ Shared secret
      -> UTCTime                 -- ^ Time of TOTP
      -> Word64                  -- ^ Time period in seconds
-     -> Word                    -- ^ Number of digits in password
+     -> Word                    -- ^ Number of digits in a password
      -> Word32                  -- ^ TOTP
-totp alg secr time period digits =
-    hotp alg secr (totpCounter time period) digits
+totp alg secr time period len =
+    hotp alg secr (totpCounter time period) len
 
-{- | Same as 'hotpCheck' but checks TOTP
+{- | Check presented password against time periods.
 
 >>> totp SHA1 "1234" (read "2010-10-10 00:00:00 UTC") 30 6
 778374
@@ -158,19 +155,19 @@ True
 totpCheck :: (HashAlgorithm a)
           => a                  -- ^ Hashing algorithm
           -> ByteString         -- ^ Shared secret
-          -> (Word64, Word64)   -- ^ How much counters to take lower and higher than ideal
-          -> UTCTime            -- ^ Time of totp
-          -> Word64             -- ^ Time period in seconds
-          -> Word               -- ^ Numer of digits in password
+          -> (Word64, Word64)   -- ^ Valid counter range, before and after ideal
+          -> UTCTime            -- ^ Time of TOTP
+          -> Word64             -- ^ Period duration in seconds
+          -> Word               -- ^ Numer of digits in a password
           -> Word32             -- ^ Password given by user
-          -> Bool               -- ^ True if password acceptable
-totpCheck alg secr rng time period digits pass =
+          -> Bool               -- ^ True if password is valid
+totpCheck alg secr rng time period len pass =
     let counters = totpCounterRange rng time period
-        passwds = map (\c -> hotp alg secr c digits) counters
+        passwds = map (\c -> hotp alg secr c len) counters
     in any (pass ==) passwds
 
 
-{- | Calculate counter for `hotp` using time. Starting time (T0
+{- | Calculate HOTP counter using time. Starting time (T0
 according to RFC6238) is 0 (begining of UNIX epoch)
 
 >>> totpCounter (read "2010-10-10 00:00:00 UTC") 30
@@ -185,15 +182,15 @@ according to RFC6238) is 0 (begining of UNIX epoch)
 -}
 
 totpCounter :: UTCTime          -- ^ Time of totp
-            -> Word64           -- ^ Time period in seconds
+            -> Word64           -- ^ Period duration in seconds
             -> Word64           -- ^ Resulting counter
 totpCounter time period =
     let timePOSIX = floor $ utcTimeToPOSIXSeconds time
     in timePOSIX `div` period
 
-{- | Return sequence of acceptable counters. It protects you from
-arithmetic overflow and truncates output to 1000 values, because huge
-counter ranges are not secure.
+{- | Make a sequence of acceptable counters, protected from
+arithmetic overflow. Maximum range is limited to 1000 due to huge
+counter ranges being insecure.
 
 >>> counterRange (0, 0) 9000
 [9000]
@@ -219,11 +216,10 @@ counter ranges are not secure.
 >>> counterRange (5, 5) 9000
 [8995,8996,8997,8998,8999,9000,9001,9002,9003,9004,9005]
 
-RFC recommends not to use big values for higher and lower counter
-ranges
+RFC recommends avoiding excessively large values for counter ranges.
 -}
 
-counterRange :: (Word64, Word64) -- ^ How much counters to take lower than ideal and higher
+counterRange :: (Word64, Word64) -- ^ Number of counters before and after ideal
              -> Word64           -- ^ Ideal counter value
              -> [Word64]
 counterRange (tolow', tohigh') ideal =
@@ -235,7 +231,7 @@ counterRange (tolow', tohigh') ideal =
   where
     trim l h = max l . min h
 
-{- | Same as 'counterRange' but used for time-based counters.
+{- | Make a sequence of acceptable periods.
 
 >>> totpCounterRange (0, 0) (read "2010-10-10 00:01:00 UTC") 30
 [42888962]
