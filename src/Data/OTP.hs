@@ -14,9 +14,9 @@ module Data.OTP
        ) where
 
 import Crypto.Hash
+import Crypto.MAC.HMAC
 import Data.Bits
-import Data.Byteable
-import Data.ByteString       (ByteString)
+import Data.ByteArray (unpack, ByteArrayAccess)
 import Data.Serialize.Get
 import Data.Serialize.Put
 import Data.Time
@@ -38,28 +38,28 @@ import qualified Data.ByteString as BS
 
 -}
 
-hotp :: (HashAlgorithm a)
-     => a                       -- ^ Hashing algorithm from module "Crypto.Hash"
-     -> ByteString              -- ^ Shared secret
-     -> Word64                  -- ^ Counter value
-     -> Word                    -- ^ Number of digits in a password
-     -> Word32                  -- ^ HOTP
-hotp alg secr cnt len =
-    let h = trunc
-            $ toBytes
-            $ hmacAlg alg secr
-            $ runPut
-            $ putWord64be cnt
-    in h `mod` (10^len)
+hotp
+  :: forall a key
+   . (HashAlgorithm a, ByteArrayAccess key)
+  => a                       -- ^ Hashing algorithm from module "Crypto.Hash.IO"
+  -> key                     -- ^ Shared secret
+  -> Word64                  -- ^ Counter value
+  -> Word                    -- ^ Number of digits in a password
+  -> Word32                  -- ^ HOTP
+hotp _ key cnt digits =
+  let msg = runPut $ putWord64be cnt
+      h :: HMAC a
+      h = hmac key msg
+      w = trunc $ unpack h
+  in w `mod` (10 ^ digits)
   where
-    trunc :: ByteString -> Word32
+    trunc :: [Word8] -> Word32
     trunc b =
-        let offset = BS.last b .&. 15 -- take low 4 bits of last byte
-            rb = BS.take 4
-                 $ BS.drop (fromIntegral offset) b -- resulting 4 byte value
-        in case runGet getWord32be rb of
-            Left e -> error e
-            Right res -> res .&. (0x80000000 - 1) -- reset highest bit
+      let offset = last b .&. 15 -- take low 4 bits of last byte
+          rb = BS.pack $ take 4 $ drop (fromIntegral offset) b -- resulting 4 byte value
+      in case runGet getWord32be rb of
+      Left e    -> error e
+      Right res -> res .&. (0x80000000 - 1) -- reset highest bit
 
 {- | Check presented password against a valid range.
 
@@ -92,14 +92,15 @@ False
 
 -}
 
-hotpCheck :: (HashAlgorithm a)
-          => a                  -- ^ Hashing algorithm
-          -> ByteString         -- ^ Shared secret
-          -> (Word64, Word64)   -- ^ Valid counter range, before and after ideal
-          -> Word64             -- ^ Ideal (expected) counter value
-          -> Word               -- ^ Number of digits in a password
-          -> Word32             -- ^ Password entered by user
-          -> Bool               -- ^ True if password is valid
+hotpCheck
+  :: (HashAlgorithm a, ByteArrayAccess key)
+  => a                  -- ^ Hashing algorithm
+  -> key                -- ^ Shared secret
+  -> (Word64, Word64)   -- ^ Valid counter range, before and after ideal
+  -> Word64             -- ^ Ideal (expected) counter value
+  -> Word               -- ^ Number of digits in a password
+  -> Word32             -- ^ Password entered by user
+  -> Bool               -- ^ True if password is valid
 hotpCheck alg secr rng cnt len pass =
     let counters = counterRange rng cnt
         passwds = map (\c -> hotp alg secr c len) counters
@@ -121,13 +122,14 @@ hotpCheck alg secr rng cnt len pass =
 
 -}
 
-totp :: (HashAlgorithm a)
-     => a                       -- ^ Hash algorithm to use
-     -> ByteString              -- ^ Shared secret
-     -> UTCTime                 -- ^ Time of TOTP
-     -> Word64                  -- ^ Time period in seconds
-     -> Word                    -- ^ Number of digits in a password
-     -> Word32                  -- ^ TOTP
+totp
+  :: (HashAlgorithm a, ByteArrayAccess key)
+  => a         -- ^ Hash algorithm to use
+  -> key       -- ^ Shared secret
+  -> UTCTime   -- ^ Time of TOTP
+  -> Word64    -- ^ Time range in seconds
+  -> Word      -- ^ Number of digits in a password
+  -> Word32    -- ^ TOTP
 totp alg secr time period len =
     hotp alg secr (totpCounter time period) len
 
@@ -152,15 +154,16 @@ False
 True
 -}
 
-totpCheck :: (HashAlgorithm a)
-          => a                  -- ^ Hashing algorithm
-          -> ByteString         -- ^ Shared secret
-          -> (Word64, Word64)   -- ^ Valid counter range, before and after ideal
-          -> UTCTime            -- ^ Time of TOTP
-          -> Word64             -- ^ Period duration in seconds
-          -> Word               -- ^ Numer of digits in a password
-          -> Word32             -- ^ Password given by user
-          -> Bool               -- ^ True if password is valid
+totpCheck
+  :: (HashAlgorithm a, ByteArrayAccess key)
+  => a                  -- ^ Hashing algorithm
+  -> key                -- ^ Shared secret
+  -> (Word64, Word64)   -- ^ Valid counter range, before and after ideal
+  -> UTCTime            -- ^ Time of TOTP
+  -> Word64             -- ^ Time range in seconds
+  -> Word               -- ^ Numer of digits in a password
+  -> Word32             -- ^ Password given by user
+  -> Bool               -- ^ True if password is valid
 totpCheck alg secr rng time period len pass =
     let counters = totpCounterRange rng time period
         passwds = map (\c -> hotp alg secr c len) counters
@@ -181,9 +184,10 @@ according to RFC6238) is 0 (begining of UNIX epoch)
 
 -}
 
-totpCounter :: UTCTime          -- ^ Time of totp
-            -> Word64           -- ^ Period duration in seconds
-            -> Word64           -- ^ Resulting counter
+totpCounter
+  :: UTCTime     -- ^ Time of totp
+  -> Word64      -- ^ Time range in seconds
+  -> Word64      -- ^ Resulting counter
 totpCounter time period =
     let timePOSIX = floor $ utcTimeToPOSIXSeconds time
     in timePOSIX `div` period
@@ -219,9 +223,10 @@ counter ranges being insecure.
 RFC recommends avoiding excessively large values for counter ranges.
 -}
 
-counterRange :: (Word64, Word64) -- ^ Number of counters before and after ideal
-             -> Word64           -- ^ Ideal counter value
-             -> [Word64]
+counterRange
+  :: (Word64, Word64) -- ^ Number of counters before and after ideal
+  -> Word64           -- ^ Ideal counter value
+  -> [Word64]
 counterRange (tolow', tohigh') ideal =
     let tolow = min 500 tolow'
         tohigh = min 499 tohigh'
