@@ -25,7 +25,7 @@ import Data.Word
 
 import qualified Data.ByteString as BS
 
-{- | Compute HOTP using secret key and counter value.
+{- | Compute HMAC-Based One-Time Password using secret key and counter value.
 
 >>> hotp SHA1 "1234" 100 6
 317569
@@ -106,7 +106,7 @@ hotpCheck alg secr rng cnt len pass =
         passwds = map (\c -> hotp alg secr c len) counters
     in any (pass ==) passwds
 
-{- | Compute a TOTP using secret key and time.
+{- | Compute a Time-Based One-Time Password using secret key and time.
 
 >>> totp SHA1 "1234" (read "2010-10-10 00:01:00 UTC") 30 6
 388892

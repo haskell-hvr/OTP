@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 2.0.0
+### Changed
+* Change versioning to semver
+* Use `cryptonite` instead of deprecated `cryptohash` (broken backwards
+  compatibility)
+
 ## 1.0.0.1
 
 * Documentation typos fixed
