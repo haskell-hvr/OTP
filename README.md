@@ -1,10 +1,10 @@
-# `OTP`: HMAC-Based and Time-Based One-Time Passwords (HOTP & TOTP)  [![Hackage](https://img.shields.io/hackage/v/OTP.svg)](https://hackage.haskell.org/package/OTP) [![Build Status](https://travis-ci.org/hvr/OTP.svg)](https://travis-ci.org/hvr/OTP)
+# `OTP`: HMAC-Based and Time-Based One-Time Passwords (HOTP & TOTP)  [![Hackage](https://img.shields.io/hackage/v/OTP.svg)](https://hackage.haskell.org/package/OTP) [![Build Status](https://travis-ci.org/haskell-hvr/OTP.svg)](https://travis-ci.org/haskell-hvr/OTP)
 
 **Please refer to the [package description](https://hackage.haskell.org/package/OTP#description) for an overview of `OTP`.**
 
 ## Usage examples
 
-### Generation passwords
+### Generating one-time passwords
 
 If you need to generate HOTP password described in RFC4226, then use
 
@@ -25,15 +25,14 @@ Or
 
 to generate TOTP password described in RFC6238.
 
-### Checking passwords
+### Checking one-time passwords
 
 ```haskell
-hotpCheck :: (HashAlgorithm a)
-          => a                  -- ^ Hashing algorithm
-          -> ByteString         -- ^ Shared secret
-          -> (Word64, Word64)   -- ^ how much counters to take lower and higher than ideal
+hotpCheck :: HashAlgorithm      -- ^ Hashing algorithm
+          -> Secret             -- ^ Shared secret
+          -> (Word8, Word8)     -- ^ how much counters to take lower and higher than ideal
           -> Word64             -- ^ ideal (expected) counter value
-          -> Word               -- ^ Number of digits in password
+          -> Word8              -- ^ Number of digits in password
           -> Word32             -- ^ Password entered by user
           -> Bool               -- ^ True if password acceptable
 ```
@@ -55,9 +54,6 @@ in case of desynchronisation of counters between client and
 server. I.e. if you specify `(1, 1)` and ideal counter will be `10`
 then function will check passwords for `[9, 10, 11]` list of
 counters.
-
-There is also some protection, so if you specify `(minBound,
-maxBound)` then function will check just 1000 counters around ideal.
 
 Here is the same for TOTP:
 

@@ -1,0 +1,9 @@
+-- see http://cabal.readthedocs.io/en/latest/nix-local-build-overview.html
+packages: .
+
+-- avoid troublesome packages in test-suite
+constraints: foundation < 0, cryptonite < 0, cryptohash < 0
+
+package OTP
+    tests: True
+--  flags: +pure-sha

@@ -1,7 +1,18 @@
 -- | SPDX-License-Identifier: MIT
 --
--- Implements HMAC-Based One-Time Password Algorithm as defined in RFC 4226 and
--- Time-Based One-Time Password Algorithm as defined in RFC 6238.
+-- Implements the /HMAC-Based One-Time Password Algorithm/ (HOTP) as
+-- defined in [RFC 4226](https://tools.ietf.org/html/rfc4226)
+-- and the /Time-Based One-Time Password Algorithm/ (TOTP) as defined
+-- in [RFC 6238](https://tools.ietf.org/html/rfc6238).
+--
+-- Many operations in this module take or return a 'Word32' OTP value
+-- (whose most significant bit is always 0) which is truncated modulo
+-- @10^digits@ according to the 'Word8' /digits/
+-- parameter. Consequently, passing a value above 10 won't produce
+-- more than 10 digits and will effectively return the raw
+-- non-truncated 31-bit OTP value.
+--
+-- @since 0.1.0.0
 module Data.OTP
        ( -- * HOTP
          hotp
@@ -13,21 +24,20 @@ module Data.OTP
        , totpCounter
        , counterRange
        , totpCounterRange
+
+       , HashAlgorithm(..)
+       , Secret
        ) where
 
-import Crypto.Hash
-import Crypto.MAC.HMAC
-import Data.Bits
-import Data.ByteArray (unpack, ByteArrayAccess)
-import Data.Serialize.Get
-import Data.Serialize.Put
-import Data.Time
-import Data.Time.Clock.POSIX
-import Data.Word
+import           Data.Bits
+import qualified Data.ByteString       as BS
+import           Data.Time
+import           Data.Time.Clock.POSIX
+import           Data.Word
 
-import qualified Data.ByteString as BS
+import           HashImpl
 
-{- | Compute HMAC-Based One-Time Password using secret key and counter value.
+{- | Compute /HMAC-Based One-Time Password/ using secret key and counter value.
 
 >>> hotp SHA1 "1234" 100 6
 317569
@@ -41,27 +51,44 @@ import qualified Data.ByteString as BS
 -}
 
 hotp
-  :: forall a key
-   . (HashAlgorithm a, ByteArrayAccess key)
-  => a                       -- ^ Hashing algorithm from module "Crypto.Hash.IO"
-  -> key                     -- ^ Shared secret
+  :: HashAlgorithm           -- ^ Hashing algorithm
+  -> Secret                  -- ^ Shared secret
   -> Word64                  -- ^ Counter value
-  -> Word                    -- ^ Number of digits in a password
-  -> Word32                  -- ^ HOTP
-hotp _ key cnt digits =
-  let msg = runPut $ putWord64be cnt
-      h :: HMAC a
-      h = hmac key msg
-      w = trunc $ unpack h
-  in w `mod` (10 ^ digits)
+  -> Word8                   -- ^ Number of base10 digits in HOTP value
+  -> Word32                  -- ^ HOTP value
+hotp alg key cnt digits
+  | digits >= 10 = snum
+  | otherwise    = snum `rem` (10 ^ digits)
   where
-    trunc :: [Word8] -> Word32
-    trunc b =
-      let offset = last b .&. 15 -- take low 4 bits of last byte
-          rb = BS.pack $ take 4 $ drop (fromIntegral offset) b -- resulting 4 byte value
-      in case runGet getWord32be rb of
-      Left e    -> error e
-      Right res -> res .&. (0x80000000 - 1) -- reset highest bit
+    -- C
+    msg = bsFromW64 cnt
+
+    -- Snum  = StToNum(Sbits)
+    -- Sbits = DT(HS)
+    -- HS    = HMAC(K,C)
+    snum = trunc $ hmac alg key msg
+
+    -- DT(HS)
+    trunc :: BS.ByteString -> Word32
+    trunc b = case bsToW32 rb of
+                Left e    -> error e
+                Right res -> res .&. (0x80000000 - 1) -- reset highest bit
+      where
+        offset = BS.last b .&. 15 -- take low 4 bits of last byte
+        rb = BS.take 4 $ BS.drop (fromIntegral offset) b -- resulting 4 byte value
+
+    -- StToNum(Sbits)
+    bsToW32 :: BS.ByteString -> Either String Word32
+    bsToW32 bs = case BS.unpack bs of
+                   [ b0, b1, b2, b3 ] -> Right $! (((((fI b0 `shiftL` 8) .|. fI b1) `shiftL` 8) .|. fI b2) `shiftL` 8) .|. fI b3
+                   _                  -> Left "bsToW32: the impossible happened"
+      where
+        fI = fromIntegral
+
+    bsFromW64 :: Word64 -> BS.ByteString
+    bsFromW64 w = BS.pack [ b j | j <- [ 7, 6 .. 0 ] ]
+      where
+        b j = fromIntegral (w `shiftR` (j*8))
 
 {- | Check presented password against a valid range.
 
@@ -95,20 +122,19 @@ False
 -}
 
 hotpCheck
-  :: (HashAlgorithm a, ByteArrayAccess key)
-  => a                  -- ^ Hashing algorithm
-  -> key                -- ^ Shared secret
-  -> (Word64, Word64)   -- ^ Valid counter range, before and after ideal
+  :: HashAlgorithm      -- ^ Hash algorithm to use
+  -> Secret             -- ^ Shared secret
+  -> (Word8, Word8)     -- ^ Valid counter range, before and after ideal
   -> Word64             -- ^ Ideal (expected) counter value
-  -> Word               -- ^ Number of digits in a password
-  -> Word32             -- ^ Password entered by user
+  -> Word8              -- ^ Number of base10 digits in a password
+  -> Word32             -- ^ Password (i.e. HOTP value) entered by user
   -> Bool               -- ^ True if password is valid
 hotpCheck alg secr rng cnt len pass =
     let counters = counterRange rng cnt
         passwds = map (\c -> hotp alg secr c len) counters
     in any (pass ==) passwds
 
-{- | Compute a Time-Based One-Time Password using secret key and time.
+{- | Compute a /Time-Based One-Time Password/ using secret key and time.
 
 >>> totp SHA1 "1234" (read "2010-10-10 00:01:00 UTC") 30 6
 388892
@@ -125,13 +151,12 @@ hotpCheck alg secr rng cnt len pass =
 -}
 
 totp
-  :: (HashAlgorithm a, ByteArrayAccess key)
-  => a         -- ^ Hash algorithm to use
-  -> key       -- ^ Shared secret
+  :: HashAlgorithm -- ^ Hash algorithm to use
+  -> Secret    -- ^ Shared secret
   -> UTCTime   -- ^ Time of TOTP
   -> Word64    -- ^ Time range in seconds
-  -> Word      -- ^ Number of digits in a password
-  -> Word32    -- ^ TOTP
+  -> Word8     -- ^ Number of base10 digits in TOTP value
+  -> Word32    -- ^ TOTP value
 totp alg secr time period len =
     hotp alg secr (totpCounter time period) len
 
@@ -157,13 +182,12 @@ True
 -}
 
 totpCheck
-  :: (HashAlgorithm a, ByteArrayAccess key)
-  => a                  -- ^ Hashing algorithm
-  -> key                -- ^ Shared secret
-  -> (Word64, Word64)   -- ^ Valid counter range, before and after ideal
+  :: HashAlgorithm      -- ^ Hash algorithm to use
+  -> Secret             -- ^ Shared secret
+  -> (Word8, Word8)     -- ^ Valid counter range, before and after ideal
   -> UTCTime            -- ^ Time of TOTP
   -> Word64             -- ^ Time range in seconds
-  -> Word               -- ^ Numer of digits in a password
+  -> Word8              -- ^ Number of base10 digits in a password
   -> Word32             -- ^ Password given by user
   -> Bool               -- ^ True if password is valid
 totpCheck alg secr rng time period len pass =
@@ -195,8 +219,7 @@ totpCounter time period =
     in timePOSIX `div` period
 
 {- | Make a sequence of acceptable counters, protected from
-arithmetic overflow. Maximum range is limited to 1000 due to huge
-counter ranges being insecure.
+arithmetic overflow.
 
 >>> counterRange (0, 0) 9000
 [9000]
@@ -226,17 +249,18 @@ RFC recommends avoiding excessively large values for counter ranges.
 -}
 
 counterRange
-  :: (Word64, Word64) -- ^ Number of counters before and after ideal
+  :: (Word8, Word8)   -- ^ Number of counters before and after ideal
   -> Word64           -- ^ Ideal counter value
   -> [Word64]
-counterRange (tolow', tohigh') ideal =
-    let tolow = min 500 tolow'
-        tohigh = min 499 tohigh'
-        l = trim 0 ideal (ideal - tolow)
-        h = trim ideal maxBound (ideal + tohigh)
-    in [l..h]
+counterRange (tolow, tohigh) ideal = [l..h]
   where
-    trim l h = max l . min h
+    l' = ideal - fromIntegral tolow
+    l | l' <= ideal = l'
+      | otherwise  = 0
+
+    h' = ideal + fromIntegral tohigh
+    h | ideal <= h' = h'
+      | otherwise   = maxBound
 
 {- | Make a sequence of acceptable periods.
 
@@ -254,7 +278,7 @@ counterRange (tolow', tohigh') ideal =
 
 -}
 
-totpCounterRange :: (Word64, Word64)
+totpCounterRange :: (Word8, Word8)
                  -> UTCTime
                  -> Word64
                  -> [Word64]
