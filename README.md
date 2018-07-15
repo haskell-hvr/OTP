@@ -1,9 +1,10 @@
-# What
+# `OTP`: HMAC-Based and Time-Based One-Time Passwords (HOTP & TOTP)  [![Hackage](https://img.shields.io/hackage/v/OTP.svg)](https://hackage.haskell.org/package/OTP) [![Build Status](https://travis-ci.org/hvr/OTP.svg)](https://travis-ci.org/hvr/OTP)
 
-One time password implementation according to RFC4226 and RFC6238 in
-Haskell.
+**Please refer to the [package description](https://hackage.haskell.org/package/OTP#description) for an overview of `OTP`.**
 
-# Generation passwords
+## Usage examples
+
+### Generation passwords
 
 If you need to generate HOTP password described in RFC4226, then use
 
@@ -24,7 +25,7 @@ Or
 
 to generate TOTP password described in RFC6238.
 
-# Checking passwords
+### Checking passwords
 
 ```haskell
 hotpCheck :: (HashAlgorithm a)

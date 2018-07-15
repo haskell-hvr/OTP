@@ -1,0 +1,69 @@
+cabal-version: 1.12
+name:          OTP
+version:       0.1.0.0
+synopsis:      HMAC-Based and Time-Based One-Time Passwords (HOTP & TOTP)
+
+description:   Implements the /HMAC-Based One-Time Password Algorithm/ (HOTP) as
+               defined in [RFC 4226](https://tools.ietf.org/html/rfc4226)
+               and the /Time-Based One-Time Password Algorithm/ (TOTP) as defined
+               in [RFC 6238](https://tools.ietf.org/html/rfc6238).
+
+license:       MIT
+license-file:  LICENSE
+copyright:     2012 Artem Leshchev,
+               2016 Aleksey Uimanov,
+               2018 Herbert Valerio Riedel
+author:        Artem Leshchev,
+               Aleksey Uimanov,
+               Herbert Valerio Riedel
+maintainer:    hvr@gnu.org
+homepage:      https://github.com/hvr/OTP
+bug-reports:   https://github.com/hvr/OTP/issues
+category:      Cryptography
+build-type:    Simple
+
+extra-source-files:
+  CHANGELOG.md
+  README.md
+
+source-repository head
+  type:     git
+  location: https://github.com/hvr/OTP.git
+
+library
+  hs-source-dirs:     src
+  exposed-modules:    Data.OTP
+
+  default-language:   Haskell2010
+  default-extensions: OverloadedStrings
+                    , ScopedTypeVariables
+  build-depends:      base >= 4.3 && < 4.12
+                    , bytestring
+                    , cereal
+                    , cryptonite
+                    , memory
+                    , time >= 1.1
+
+  ghc-options:        -Wall
+
+
+test-suite tests
+  type:               exitcode-stdio-1.0
+
+  hs-source-dirs:     test
+  main-is:            Test.hs
+
+  default-language:   Haskell2010
+  default-extensions: ExistentialQuantification
+                      OverloadedStrings
+                      RankNTypes
+
+  build-depends:      base >= 3 && < 5
+                    , bytestring
+                    , cryptonite
+                    , OTP
+                    , tasty
+                    , tasty-hunit
+                    , time >= 1.1
+
+  ghc-options:        -Wall

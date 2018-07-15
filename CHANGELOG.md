@@ -1,18 +1,8 @@
-# CHANGELOG
+## 0.1.0.0
 
-## 2.0.0
-### Changed
-* Change versioning to semver
-* Use `cryptonite` instead of deprecated `cryptohash` (broken backwards
-  compatibility)
+* Major API rewrite ([#3](https://github.com/hvr/OTP/pull/3))
+* Add support for more hash functions besides SHA-1 ([#1](https://github.com/hvr/OTP/pull/1))
 
-## 1.0.0.1
+## 0.0.0.1
 
-* Documentation typos fixed
-
-## 1.0.0.0
-
-* Forked from OTP (https://github.com/matshch/OTP)
-* Rewrote with `cryptohash`
-* Add multiple hash functions support
-* Tests improoved: all RFC test verctors passed
+Initial version of `OTP`

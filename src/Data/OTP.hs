@@ -1,4 +1,6 @@
--- |Implements HMAC-Based One-Time Password Algorithm as defined in RFC 4226 and
+-- | SPDX-License-Identifier: MIT
+--
+-- Implements HMAC-Based One-Time Password Algorithm as defined in RFC 4226 and
 -- Time-Based One-Time Password Algorithm as defined in RFC 6238.
 module Data.OTP
        ( -- * HOTP

@@ -1,2 +1,0 @@
-* 1.1
-** Implement uri generation for initial secret sharing
