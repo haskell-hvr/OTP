@@ -79,7 +79,7 @@ test-suite tests
                     , OTP
                     , time
                     -- dependency constraints not inherited via 'OTP' component
-                    , tasty == 1.1.*
+                    , tasty >= 1.1 && < 1.3
                     , tasty-hunit == 0.10.*
 
   ghc-options:        -Wall
