@@ -1,4 +1,4 @@
-# `OTP`: HMAC-Based and Time-Based One-Time Passwords (HOTP & TOTP)  [![Hackage](https://img.shields.io/hackage/v/OTP.svg)](https://hackage.haskell.org/package/OTP) [![Build Status](https://travis-ci.org/haskell-hvr/OTP.svg)](https://travis-ci.org/haskell-hvr/OTP)
+# `OTP`: HMAC-Based and Time-Based One-Time Passwords (HOTP & TOTP)  [![Hackage](https://img.shields.io/hackage/v/OTP.svg)](https://hackage.haskell.org/package/OTP) [![Haskell CI](https://github.com/sigrdrifa/OTP/actions/workflows/haskell.yml/badge.svg)](https://github.com/sigrdrifa/OTP/actions/workflows/haskell.yml)
 
 **Please refer to the [package description](https://hackage.haskell.org/package/OTP#description) for an overview of `OTP`.**
 
